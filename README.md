@@ -260,6 +260,80 @@ chmod -R u+rwX data uploads crops
 
 ---
 
+# Face Recognition Startup
+
+Use the following steps to start the Atomo AI face recognition service.
+
+## First-Time Setup
+
+From the repository root:
+
+```bash
+cd face_recognition
+npm install
+python3 -m venv venv
+source venv/bin/activate
+pip install numpy opencv-python-headless huggingface-hub
+chmod +x mediamtx
+```
+
+The application uses the built-in SQLite support provided by Node.js. The runtime database is created automatically at:
+
+```text
+data/face_recognition.db
+```
+
+Do not create or restore `data/database.json`; the application no longer uses the JSON database.
+
+## Start Face Recognition
+
+Every time you want to start the service:
+
+```bash
+cd face_recognition
+source venv/bin/activate
+npm start
+```
+
+The server starts on:
+
+```text
+http://localhost:3000
+```
+
+When started successfully, the terminal should show messages similar to:
+
+```text
+Face Recognition Server is listening on http://localhost:3000
+Python face worker is ready.
+```
+
+The server automatically starts MediaMTX and the Python face-recognition worker. Active cameras configured in SQLite are resumed automatically.
+
+## Open the Dashboard
+
+On the same machine, open:
+
+```text
+http://localhost:3000
+```
+
+From another computer on the same network, find the server IP:
+
+```bash
+hostname -I
+```
+
+Then open:
+
+```text
+http://SERVER_IP:3000
+```
+
+Replace `SERVER_IP` with the IP address of the face-recognition server.
+
+---
+
 # Run the Application
 
 ## Start the Application
