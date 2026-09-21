@@ -18,8 +18,5 @@
   "engines": {
     "node": ">=24.0.0"
   },
-  "private": true,
-  "allowScripts": {
-    "better-sqlite3@11.10.0": true
-  }
+  "private": true
 }
