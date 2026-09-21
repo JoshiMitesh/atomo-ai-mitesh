@@ -1,76 +1,85 @@
 # Atomo AI – Face Recognition and Video Analytics Platform
 
-Atomo AI is a real-time face recognition and video analytics platform for camera monitoring, person detection, face recognition, unknown-person clustering, event management, and alert configuration.
+Atomo AI is a real-time face recognition and video analytics platform for camera monitoring, person detection, face recognition, unknown-person clustering, event management, and camera configuration.
 
-The system processes live RTSP camera streams, detects people and faces, compares detected faces with enrolled identities, groups unknown faces into clusters, and displays all results through a web dashboard.
+The system processes RTSP camera streams, detects faces, generates face embeddings, compares them with enrolled persons, clusters unknown faces, records recognition events, and provides a web dashboard.
+
+## Current Architecture
+
+- **Backend:** Node.js + Express
+- **Frontend:** Static web application served by Express
+- **Database:** SQLite using Node.js built-in `node:sqlite`
+- **Face detection:** YuNet
+- **Face recognition:** SFace
+- **AI acceleration:** OpenCV TIM-VX / NPU when supported by the installed OpenCV build
+- **Video streaming:** MediaMTX + RTSP
+- **Face worker:** Python
+- **Realtime communication:** WebSocket
+- **Database format:** SQLite only — the old JSON database is no longer used
 
 ---
 
 ## Main Features
 
-* User registration and login
-* Role-based access control
-* Camera registration and management
-* RTSP camera stream support
-* Live camera viewing
-* Real-time person detection
-* Real-time face detection
-* Face recognition using YuNet and SFace
-* Enrolled-person management
-* Face embedding generation and storage
-* Unknown-person detection
-* Automatic unknown-face clustering
-* Cluster review and person enrollment
-* Detection event history
-* Event images and recognition details
-* Camera stream logs
-* Live system metrics
-* Alert configuration
-* Device registration
-* User role management
-* Cluster role management
-* MediaMTX-based stream handling
+- User registration and login
+- Role-based access control
+- Camera registration and management
+- RTSP camera stream support
+- Live camera viewing
+- Real-time person detection
+- Real-time face detection
+- Face recognition using YuNet and SFace
+- Enrolled-person management
+- Face embedding generation and storage
+- Unknown-person detection
+- Automatic unknown-face clustering
+- Cluster review and person enrollment
+- Detection event history
+- Event images and recognition details
+- Camera stream logs
+- Live system metrics
+- Alert configuration
+- Device registration
+- User and cluster role management
+- Line-crossing configuration
+- MediaMTX-based stream handling
+- SQLite persistence
 
 ---
 
-## Project Structure
+# System Requirements
 
-```text
-atomo-ai-fronend-backend/
-├── README.md
-└── face_recognition/
-    ├── package.json
-    ├── server.js
-    ├── db.js
-    ├── face_worker.py
-    ├── mediamtx
-    ├── mediamtx.yml
-    ├── public/
-    ├── data/
-    ├── uploads/
-    └── crops/
+## Operating System
+
+Recommended:
+
+- Ubuntu 22.04
+- Ubuntu 24.04
+
+## Required Software
+
+- Git
+- **Node.js 24 or newer**
+- npm
+- Python 3
+- Python virtual environment
+- FFmpeg
+- FFprobe
+- MediaMTX executable included in the project
+
+For NPU acceleration, the system must have an OpenCV build that provides the required **TIM-VX / NPU** backend.
+
+Check Node.js:
+
+```bash
+node --version
 ```
 
----
+The project requires:
 
-## System Requirements
-
-Recommended operating system:
-
-* Ubuntu 22.04
-* Ubuntu 24.04
-
-Required software:
-
-* Git
-* Node.js 18 or newer
-* npm
-* Python 3
-* Python virtual environment
-* FFmpeg
-* FFprobe
-* MediaMTX
-* Internet connection during first startup for downloading face detection and recognition models
+```text
+v24.x or newer
+```
 
 ---
 
@@ -78,19 +87,21 @@ Required software:
 
 ## 1. Clone the Repository
 
+Clone the current repository and branch:
+
 ```bash
-git clone -b final_demo https://github.com/Atomo-innovation/atomo-ai-fronend-backend.git
+git clone -b agent/recognition-on-going https://github.com/JoshiMitesh/atomo-ai-mitesh.git
 ```
 
-Open the project directory:
+Enter the face-recognition project:
 
 ```bash
-cd atomo-ai-fronend-backend/face_recognition
+cd atomo-ai-mitesh/face_recognition
 ```
 
 ---
 
-## 2. Install Required Ubuntu Packages
+## 2. Install Ubuntu Packages
 
 ```bash
 sudo apt update
@@ -109,13 +120,13 @@ libgl1 \
 libglib2.0-0
 ```
 
-Verify FFmpeg installation:
+Verify FFmpeg:
 
 ```bash
 ffmpeg -version
 ```
 
-Verify FFprobe installation:
+Verify FFprobe:
 
 ```bash
 ffprobe -version
@@ -123,71 +134,61 @@ ffprobe -version
 
 ---
 
-## 3. Install Node.js
+## 3. Install Node.js 24+
 
-Node.js 20 is recommended.
+The application uses Node.js's built-in `node:sqlite`, so **Node.js 24 or newer is required**.
 
-```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-```
+For a fresh Ubuntu installation, install Node.js 24:
 
 ```bash
+curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
 sudo apt install -y nodejs
 ```
 
-Verify Node.js:
+Verify:
 
 ```bash
 node --version
-```
-
-Verify npm:
-
-```bash
 npm --version
 ```
 
-The Node.js version should be 18 or newer.
+The Node.js version must be **24 or newer**.
 
 ---
 
 ## 4. Install Node.js Dependencies
 
-Make sure you are inside the `face_recognition` directory:
-
-```bash
-cd atomo-ai-fronend-backend/face_recognition
-```
-
-Install dependencies:
+From the `face_recognition` directory:
 
 ```bash
 npm install
 ```
 
-The backend uses:
+The current backend dependencies include:
 
-* Express
-* WebSocket
-* CORS
-* Multer
-* dotenv
+- Express
+- WebSocket
+- CORS
+- Multer
+- ExcelJS
+
+There is **no `better-sqlite3` native dependency** and no separate SQLite server is required.
 
 ---
 
-## 5. Create Python Virtual Environment
+## 5. Create the Python Virtual Environment
 
 ```bash
 python3 -m venv venv
 ```
 
-Activate the virtual environment:
+Activate it:
 
 ```bash
 source venv/bin/activate
 ```
 
-Upgrade pip:
+Upgrade Python packaging tools:
 
 ```bash
 python -m pip install --upgrade pip setuptools wheel
@@ -197,151 +198,70 @@ python -m pip install --upgrade pip setuptools wheel
 
 ## 6. Install Python Dependencies
 
+Install the Python packages used by the face worker:
+
 ```bash
 pip install numpy opencv-python-headless huggingface-hub
 ```
 
-Verify the Python dependencies:
+Verify:
 
 ```bash
 python -c "import cv2, numpy, huggingface_hub; print('Python dependencies installed successfully')"
 ```
 
-Every time you open a new terminal, activate the environment again:
+### NPU Note
+
+The face worker is configured to use OpenCV **TIM-VX / NPU** for YuNet when the installed OpenCV build supports it.
+
+You can check the available OpenCV build with:
 
 ```bash
-cd atomo-ai-fronend-backend/face_recognition
-source venv/bin/activate
+python -c "import cv2; print(cv2.__version__); print('TIM-VX:', getattr(cv2.dnn, 'DNN_BACKEND_TIMVX', 'not available')); print('NPU:', getattr(cv2.dnn, 'DNN_TARGET_NPU', 'not available'))"
 ```
+
+If the required TIM-VX/NPU backend is unavailable, the worker can fall back to CPU.
 
 ---
 
 ## 7. Prepare MediaMTX
 
-The MediaMTX executable should be available inside:
+The repository contains the MediaMTX executable:
 
 ```text
 face_recognition/mediamtx
 ```
 
-Give execution permission:
+Give it execute permission:
 
 ```bash
 chmod +x mediamtx
 ```
 
-Verify MediaMTX:
+Verify:
 
 ```bash
 ./mediamtx --version
 ```
 
-The included MediaMTX binary must match your system architecture.
+The binary must match the target system architecture.
 
-For example:
+Examples:
 
-* Linux x86-64 requires an amd64 binary
-* ARM64 requires an arm64 binary
-* ARM32 requires an armv7 binary
-
----
-
-## 8. Create Runtime Directories
-
-```bash
-mkdir -p data uploads crops
-```
-
-Give the current user permission:
-
-```bash
-chmod -R u+rwX data uploads crops
-```
+- x86-64 → amd64 MediaMTX binary
+- ARM64 → arm64 MediaMTX binary
+- ARM32 → armv7 MediaMTX binary
 
 ---
 
-# Face Recognition Startup
+# Start Face Recognition
 
-Use the following steps to start the Atomo AI face recognition service.
+## First Startup
 
-## First-Time Setup
-
-From the repository root:
+From the repository:
 
 ```bash
-cd face_recognition
-npm install
-python3 -m venv venv
-source venv/bin/activate
-pip install numpy opencv-python-headless huggingface-hub
-chmod +x mediamtx
-```
-
-The application uses the built-in SQLite support provided by Node.js. The runtime database is created automatically at:
-
-```text
-data/face_recognition.db
-```
-
-Do not create or restore `data/database.json`; the application no longer uses the JSON database.
-
-## Start Face Recognition
-
-Every time you want to start the service:
-
-```bash
-cd face_recognition
-source venv/bin/activate
-npm start
-```
-
-The server starts on:
-
-```text
-http://localhost:3000
-```
-
-When started successfully, the terminal should show messages similar to:
-
-```text
-Face Recognition Server is listening on http://localhost:3000
-Python face worker is ready.
-```
-
-The server automatically starts MediaMTX and the Python face-recognition worker. Active cameras configured in SQLite are resumed automatically.
-
-## Open the Dashboard
-
-On the same machine, open:
-
-```text
-http://localhost:3000
-```
-
-From another computer on the same network, find the server IP:
-
-```bash
-hostname -I
-```
-
-Then open:
-
-```text
-http://SERVER_IP:3000
-```
-
-Replace `SERVER_IP` with the IP address of the face-recognition server.
-
----
-
-# Run the Application
-
-## Start the Application
-
-Open the project directory:
-
-```bash
-cd atomo-ai-fronend-backend/face_recognition
+cd atomo-ai-mitesh/face_recognition
 ```
 
 Activate the Python environment:
@@ -356,19 +276,27 @@ Start the application:
 npm start
 ```
 
-You can also use:
+**Do not start MediaMTX or the Python face worker manually.** The Node.js server starts the required MediaMTX process and the Python face-recognition worker.
+
+---
+
+## Daily Start
+
+After the initial installation, the normal startup is:
 
 ```bash
-npm run dev
+cd atomo-ai-mitesh/face_recognition
+source venv/bin/activate
+npm start
 ```
 
-The application will start on:
+Or in one command:
 
-```text
-http://localhost:3000
+```bash
+cd atomo-ai-mitesh/face_recognition && source venv/bin/activate && npm start
 ```
 
-Open this URL in your browser:
+The web application is available at:
 
 ```text
 http://localhost:3000
@@ -376,200 +304,99 @@ http://localhost:3000
 
 ---
 
-## Open the Application from Another Computer
+## Open the Dashboard from Another Computer
 
-Find the server IP address:
+Find the server IP:
 
 ```bash
 hostname -I
 ```
 
-Example output:
+Example:
 
 ```text
 192.168.1.100
 ```
 
-Open the application from another computer using:
+Open:
 
 ```text
 http://192.168.1.100:3000
 ```
 
-Replace `192.168.1.100` with the actual IP address of the server.
+Replace the IP address with the actual IP of the face-recognition server.
 
 ---
 
-# Complete Installation Command
+# Database
 
-You can use the following commands for a fresh Ubuntu installation:
+The application now uses **SQLite as the only application database**.
 
-```bash
-git clone -b final_demo https://github.com/Atomo-innovation/atomo-ai-fronend-backend.git
+Database file:
 
-cd atomo-ai-fronend-backend/face_recognition
-
-sudo apt update
-
-sudo apt install -y \
-git \
-curl \
-ffmpeg \
-python3 \
-python3-pip \
-python3-venv \
-build-essential \
-libgl1 \
-libglib2.0-0
-
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-
-sudo apt install -y nodejs
-
-npm install
-
-python3 -m venv venv
-
-source venv/bin/activate
-
-python -m pip install --upgrade pip setuptools wheel
-
-pip install numpy opencv-python-headless huggingface-hub
-
-chmod +x mediamtx
-
-mkdir -p data uploads crops
-
-chmod -R u+rwX data uploads crops
-
-npm start
+```text
+face_recognition/data/face_recognition.db
 ```
 
----
+The database is created automatically by `db.js`.
 
-# Daily Run Command
+The database contains:
 
-After installation, use these commands whenever you want to start the project:
+- Persons
+- Person photos
+- Face embeddings
+- Recognition events
+- Cameras
+- Unknown-face clusters
+- Cluster photos and embeddings
+- Application settings
+- Recognition threshold
+- Recognition distance type
+- Cluster counter
 
-```bash
-cd atomo-ai-fronend-backend/face_recognition
+Face embeddings are stored as SQLite **BLOB** values.
+
+### Important
+
+The old file:
+
+```text
+data/database.json
 ```
 
-```bash
-source venv/bin/activate
+is no longer used and has been removed from the project.
+
+Do **not** recreate `database.json` manually.
+
+Runtime data is intentionally ignored by Git through:
+
+```text
+face_recognition/.gitignore
 ```
-
-```bash
-npm start
-```
-
-Or run everything in one command:
-
-```bash
-cd atomo-ai-fronend-backend/face_recognition && source venv/bin/activate && npm start
-```
-
----
-
-# Run in Background Using PM2
-
-PM2 can keep the application running after closing the terminal.
-
-## Install PM2
-
-```bash
-sudo npm install -g pm2
-```
-
-## Start the Application with PM2
-
-```bash
-cd atomo-ai-fronend-backend/face_recognition
-```
-
-```bash
-source venv/bin/activate
-```
-
-```bash
-pm2 start npm --name atomo-ai -- start
-```
-
-## Check Application Status
-
-```bash
-pm2 status
-```
-
-## View Application Logs
-
-```bash
-pm2 logs atomo-ai
-```
-
-## Restart the Application
-
-```bash
-pm2 restart atomo-ai
-```
-
-## Stop the Application
-
-```bash
-pm2 stop atomo-ai
-```
-
-## Remove the Application from PM2
-
-```bash
-pm2 delete atomo-ai
-```
-
----
-
-## Enable Automatic Startup
-
-Save the PM2 process:
-
-```bash
-pm2 save
-```
-
-Generate the startup command:
-
-```bash
-pm2 startup
-```
-
-PM2 will display a command beginning with `sudo`.
-
-Copy and run that command.
-
-Then save the PM2 configuration again:
-
-```bash
-pm2 save
-```
-
-The application will now start automatically after system reboot.
 
 ---
 
 # Database Reset
 
-The project includes a database reset command.
-
-Warning: this command may delete application data, uploaded files, stored events, enrolled persons, and generated runtime files.
-
-Run:
-
-```bash
-cd atomo-ai-fronend-backend/face_recognition
-```
+The project provides a database reset command:
 
 ```bash
 npm run reset-db
 ```
+
+This clears:
+
+- Persons
+- Person photos
+- Recognition events
+- Cameras
+- Unknown clusters
+- Cluster photos
+- Application settings
+
+It also removes runtime files from the uploads and crops directories.
+
+**Warning:** This operation deletes application data. Use it only when a complete reset is required.
 
 ---
 
@@ -577,7 +404,7 @@ npm run reset-db
 
 The application supports RTSP cameras.
 
-The common RTSP URL format is:
+General RTSP format:
 
 ```text
 rtsp://USERNAME:PASSWORD@CAMERA_IP:554/STREAM_PATH
@@ -589,13 +416,13 @@ Example:
 rtsp://admin:password@192.168.1.116:554/stream1
 ```
 
-Add the full RTSP URL through the camera management page.
+Add the RTSP URL through the camera management interface.
 
-The camera and server should be connected to the same network.
+The camera must be reachable from the face-recognition server.
 
 ---
 
-## Test RTSP Camera Using FFprobe
+## Test an RTSP Camera with FFprobe
 
 ```bash
 ffprobe \
@@ -607,21 +434,9 @@ ffprobe \
 "rtsp://USERNAME:PASSWORD@CAMERA_IP:554/STREAM_PATH"
 ```
 
-Example:
-
-```bash
-ffprobe \
--v error \
--rtsp_transport tcp \
--select_streams v:0 \
--show_entries stream=codec_name,width,height \
--of default=noprint_wrappers=1 \
-"rtsp://admin:password@192.168.1.116:554/stream1"
-```
-
 ---
 
-## Test RTSP Camera Using FFmpeg
+## Test an RTSP Camera with FFmpeg
 
 ```bash
 ffmpeg \
@@ -634,43 +449,30 @@ ffmpeg \
 -f null -
 ```
 
-If the stream is working, FFmpeg will process the video for 10 seconds.
+If the command processes video for approximately 10 seconds without an RTSP error, the stream is reachable.
 
 ---
 
 # Application Ports
 
-The application commonly uses the following ports:
+| Port | Purpose |
+|---:|---|
+| `3000` | Atomo AI web application and API |
+| `8554` | MediaMTX RTSP |
+| `8888` | MediaMTX HLS |
+| `8889` | MediaMTX WebRTC/WHEP HTTP |
+| `8189/UDP` | MediaMTX WebRTC media |
 
-|       Port | Purpose                             |
-| ---------: | ----------------------------------- |
-|     `3000` | Atomo AI web application and API    |
-|     `8554` | MediaMTX RTSP server                |
-|     `8888` | MediaMTX HLS server                 |
-|     `8889` | MediaMTX WebRTC or WHEP HTTP server |
-| `8189/UDP` | MediaMTX WebRTC media               |
-
----
-
-## Allow Ports Through Ubuntu Firewall
+If Ubuntu UFW is enabled:
 
 ```bash
 sudo ufw allow 3000/tcp
-```
-
-```bash
 sudo ufw allow 8554/tcp
-```
-
-```bash
 sudo ufw allow 8888/tcp
-```
-
-```bash
 sudo ufw allow 8889/tcp
 ```
 
-Check firewall status:
+Check:
 
 ```bash
 sudo ufw status
@@ -678,17 +480,153 @@ sudo ufw status
 
 ---
 
-# Troubleshooting
-
-## MediaMTX Permission Denied
-
-Error:
+# Architecture Flow
 
 ```text
-Permission denied
+RTSP Camera
+    |
+    v
+MediaMTX
+    |
+    v
+Node.js Server
+    |
+    +----------------------+
+    |                      |
+    v                      v
+Python Face Worker       Web Dashboard
+    |
+    +--> YuNet
+    |      |
+    |      +--> TIM-VX / NPU
+    |
+    +--> SFace
+    |
+    +--> Face Embeddings
+    |
+    +--> Recognition / Clustering
+    |
+    v
+SQLite
+    |
+    +--> Persons
+    +--> Photos + Embeddings
+    +--> Events
+    +--> Cameras
+    +--> Clusters
+    +--> Settings
 ```
 
-Fix:
+---
+
+# Running in the Background with PM2
+
+PM2 is optional.
+
+Install:
+
+```bash
+sudo npm install -g pm2
+```
+
+Start:
+
+```cd atomo-ai-mitesh/face_recognition
+source venv/bin/activate
+pm2 start npm --name atomo-ai -- start
+```
+
+Check:
+
+```bash
+pm2 status
+```
+
+View logs:
+
+```bash
+pm2 logs atomo-ai
+```
+
+Restart:
+
+```bash
+pm2 restart atomo-ai
+```
+
+Stop:
+
+```bash
+pm2 stop atomo-ai
+```
+
+Remove:
+
+```bash
+pm2 delete atomo-ai
+```
+
+Enable startup after reboot:
+
+```bash
+pm2 save
+pm2 startup
+```
+
+Run the `sudo ...` command printed by PM2, then:
+
+```bash
+pm2 save
+```
+
+---
+
+# Troubleshooting
+
+## Check Node.js Version
+
+```bash
+node --version
+```
+
+The project requires Node.js 24 or newer.
+
+---
+
+## Check SQLite
+
+From `face_recognition`:
+
+```bash
+node -e "const db=require('./db.js'); console.log('SQLite DB OK'); console.log(db.getPersons())"
+```
+
+If successful, the SQLite database can be opened by the application.
+
+Node.js may print an experimental warning for `node:sqlite`; this is a runtime warning and does not by itself indicate a database failure.
+
+---
+
+## Check JavaScript Syntax
+
+```bash
+node --check server.js
+node --check db.js
+```
+
+---
+
+## Check Python
+
+```bash
+source venv/bin/activate
+python --version
+python -c "import cv2, numpy; print('Python/OpenCV OK')"
+```
+
+---
+
+## MediaMTX Permission Denied
 
 ```bash
 chmod +x mediamtx
@@ -704,31 +642,19 @@ npm start
 
 ## MediaMTX Port Already in Use
 
-Check port `8554`:
+Check:
 
 ```bash
 sudo lsof -i :8554
 ```
 
-Check port `8888`:
-
-```bash
-sudo lsof -i :8888
-```
-
-Check port `8889`:
-
-```bash
-sudo lsof -i :8889
-```
-
-Stop the existing MediaMTX process:
+Stop an old MediaMTX process if required:
 
 ```bash
 pkill -f mediamtx
 ```
 
-Then restart the project:
+Then restart:
 
 ```bash
 npm start
@@ -738,21 +664,13 @@ npm start
 
 ## Port 3000 Already in Use
 
-Check which process is using port `3000`:
+Check:
 
 ```bash
 sudo lsof -i :3000
 ```
 
-Stop the process using its PID:
-
-```bash
-sudo kill -9 PID
-```
-
-Replace `PID` with the actual process ID.
-
-You can also run the project on another port:
+You can run the application on another port:
 
 ```bash
 PORT=3001 npm start
@@ -774,7 +692,7 @@ Activate the virtual environment:
 source venv/bin/activate
 ```
 
-Install the required modules:
+Install the dependencies:
 
 ```bash
 pip install numpy opencv-python-headless huggingface-hub
@@ -782,130 +700,51 @@ pip install numpy opencv-python-headless huggingface-hub
 
 ---
 
-## OpenCV Shared Library Error
+## RTSP Camera Not Connecting
 
-Install the required libraries:
+Check:
 
-```bash
-sudo apt install -y libgl1 libglib2.0-0
-```
+1. Camera IP address
+2. RTSP username
+3. RTSP password
+4. RTSP stream path
+5. RTSP port
+6. Network connectivity
+7. Camera RTSP configuration
+8. Camera codec compatibility
+9. Firewall rules
 
-Then test OpenCV:
-
-```bash
-python -c "import cv2; print(cv2.__version__)"
-```
-
----
-
-## Face Models Are Not Downloading
-
-The Python worker downloads YuNet and SFace models from Hugging Face during the first startup.
-
-Check internet connectivity:
-
-```bash
-ping -c 4 huggingface.co
-```
-
-Check DNS:
-
-```bash
-ping -c 4 google.com
-```
-
-Restart the application after internet connectivity is available:
-
-```bash
-npm start
-```
-
----
-
-## RTSP Camera Is Not Connecting
-
-Check whether the camera is reachable:
+Test connectivity:
 
 ```bash
 ping CAMERA_IP
 ```
 
-Example:
-
-```bash
-ping 192.168.1.116
-```
-
-Check the following:
-
-* Camera IP address
-* RTSP username
-* RTSP password
-* RTSP stream path
-* Camera and server network connection
-* Firewall settings
-* Camera RTSP option is enabled
-* Correct camera codec
-* Correct RTSP port
-
-Test the camera directly using FFmpeg:
-
-```bash
-ffmpeg \
--hide_banner \
--loglevel warning \
--rtsp_transport tcp \
--i "rtsp://USERNAME:PASSWORD@CAMERA_IP:554/STREAM_PATH" \
--t 10 \
--an \
--f null -
-```
+Then test the RTSP URL with FFprobe or FFmpeg.
 
 ---
 
-## Node.js Dependencies Error
+## Check Running Processes
 
-Remove the existing dependencies:
-
-```bash
-rm -rf node_modules package-lock.json
-```
-
-Install them again:
-
-```bash
-npm install
-```
-
-Then start:
-
-```bash
-npm start
-```
-
----
-
-## View Running Processes
-
-Check Node.js:
+Node.js:
 
 ```bash
 ps aux | grep node
 ```
 
-Check MediaMTX:
+MediaMTX:
 
 ```bash
 ps aux | grep mediamtx
 ```
 
-Check Python worker:
+Python worker:
 
 ```bash
 ps aux | grep face_worker
 ```
 
-Check FFmpeg:
+FFmpeg:
 
 ```bash
 ps aux | grep ffmpeg
@@ -913,63 +752,38 @@ ps aux | grep ffmpeg
 
 ---
 
-## Stop All Project Processes
+# Stop the Application
 
-Stop Node.js:
+If running directly in the terminal:
 
-```bash
-pkill -f "node server.js"
+```text
+Ctrl + C
 ```
 
-Stop MediaMTX:
+The Node.js server manages MediaMTX and the Python worker.
+
+If using PM2:
 
 ```bash
-pkill -f mediamtx
-```
-
-Stop Python worker:
-
-```bash
-pkill -f face_worker.py
-```
-
-Stop FFmpeg:
-
-```bash
-pkill -f ffmpeg
+pm2 stop atomo-ai
 ```
 
 ---
 
 # Update the Project
 
-Open the repository:
+Switch to the current branch:
 
 ```bash
-cd atomo-ai-fronend-backend
+cd atomo-ai-mitesh
+git checkout agent/recognition-on-going
+git pull origin agent/recognition-on-going
 ```
 
-Switch to the `final_demo` branch:
-
-```bash
-git checkout final_demo
-```
-
-Pull the latest code:
-
-```bash
-git pull origin final_demo
-```
-
-Open the application directory:
+Install/update Node.js dependencies:
 
 ```bash
 cd face_recognition
-```
-
-Install updated Node.js dependencies:
-
-```bash
 npm install
 ```
 
@@ -979,19 +793,19 @@ Activate the Python environment:
 source venv/bin/activate
 ```
 
-Update Python packages:
+Update Python dependencies if required:
 
 ```bash
 pip install --upgrade numpy opencv-python-headless huggingface-hub
 ```
 
-Restart the application:
+Start the application:
 
 ```bash
 npm start
 ```
 
-For PM2:
+If using PM2:
 
 ```bash
 pm2 restart atomo-ai
@@ -999,65 +813,71 @@ pm2 restart atomo-ai
 
 ---
 
-# Stop the Application
+# Quick Start
 
-When running directly in the terminal, press:
-
-```text
-Ctrl + C
-```
-
-When running through PM2:
+For an already-installed system:
 
 ```bash
-pm2 stop atomo-ai
+cd atomo-ai-mitesh/face_recognition
+source venv/bin/activate
+npm start
+```
+
+Open:
+
+```text
+http://localhost:3000
+```
+
+For another computer on the same network:
+
+```text
+http://SERVER_IP:3000
 ```
 
 ---
 
 # Quick Commands
 
-## Start
+### Start
 
 ```bash
-cd atomo-ai-fronend-backend/face_recognition
+cd atomo-ai-mitesh/face_recognition
 source venv/bin/activate
 npm start
 ```
 
-## Stop
-
-Press:
+### Stop
 
 ```text
 Ctrl + C
 ```
 
-## PM2 Start
-
-```bash
-pm2 start npm --name atomo-ai -- start
-```
-
-## PM2 Restart
-
-```bash
-pm2 restart atomo-ai
-```
-
-## PM2 Logs
-
-```bash
-pm2 logs atomo-ai
-```
-
-## Reset Database
+### Reset SQLite Database
 
 ```bash
 npm run reset-db
 ```
 
-## Application URL
+### PM2 Start
+
+```bash
+pm2 start npm --name atomo-ai -- start
+```
+
+### PM2 Logs
+
+```bash
+pm2 logs atomo-ai
+```
+
+### PM2 Restart
+
+```bash
+pm2 restart atomo-ai
+```
+
+### Application
 
 ```text
 http://localhost:3000
