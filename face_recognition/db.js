@@ -430,6 +430,15 @@ module.exports = {
     return db.cameras.find(c => c.id === id) || null;
   },
 
+  updateCamera(id, updates = {}) {
+    const db = readDB();
+    const camera = db.cameras.find(c => c.id === id);
+    if (!camera) return null;
+    Object.assign(camera, updates);
+    writeDB(db);
+    return camera;
+  },
+
   addCamera(name, rtspUrl) {
     const db = readDB();
     const newCamera = {
