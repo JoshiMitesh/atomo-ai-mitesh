@@ -17,7 +17,7 @@ const sqlite = new DatabaseSync(SQLITE_FILE, {
   defensive: true
 });
 
-sqlite.exec(\`
+sqlite.exec(`
 PRAGMA journal_mode = WAL;
 PRAGMA synchronous = NORMAL;
 PRAGMA foreign_keys = ON;
@@ -95,7 +95,7 @@ CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_events_person ON events(person_id);
 CREATE INDEX IF NOT EXISTS idx_events_camera ON events(camera_id);
 CREATE INDEX IF NOT EXISTS idx_cluster_photos_cluster ON cluster_photos(cluster_id);
-\`);
+`);
 
 function newId(prefix = '') {
   return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -372,12 +372,12 @@ const api = {
   },
 
   getAllCandidates() {
-    const rows = sqlite.prepare(\`
+    const rows = sqlite.prepare(`
       SELECT p.id AS person_id, p.name, ph.embedding
       FROM persons p
       JOIN photos ph ON ph.person_id=p.id
       ORDER BY p.rowid, ph.rowid
-    \`).all();
+    `).all();
 
     const candidates = new Map();
     for (const row of rows) {
@@ -413,12 +413,12 @@ const api = {
     if (!camera) return null;
 
     const merged = { ...camera, ...updates };
-    sqlite.prepare(\`
+    sqlite.prepare(`
       UPDATE cameras
       SET name=?,rtsp_url=?,is_active=?,line_crossing_enabled=?,
           line_y=?,line_direction=?,line_x_start=?,line_x_end=?
       WHERE id=?
-    \`).run(
+    `).run(
       merged.name,
       merged.rtsp_url,
       merged.is_active ? 1 : 0,
@@ -447,12 +447,12 @@ const api = {
       created_at: new Date().toISOString()
     };
 
-    sqlite.prepare(\`
+    sqlite.prepare(`
       INSERT INTO cameras(
         id,name,rtsp_url,is_active,line_crossing_enabled,
         line_y,line_direction,line_x_start,line_x_end,created_at
       ) VALUES(?,?,?,?,?,?,?,?,?,?)
-    \`).run(
+    `).run(
       camera.id, camera.name, camera.rtsp_url, 0, 0,
       camera.line_y, camera.line_direction,
       camera.line_x_start, camera.line_x_end, camera.created_at
@@ -485,11 +485,11 @@ const api = {
       lineXEnd: lineXEnd !== undefined ? parseFloat(lineXEnd) : camera.line_x_end
     };
 
-    sqlite.prepare(\`
+    sqlite.prepare(`
       UPDATE cameras
       SET line_crossing_enabled=?,line_y=?,line_direction=?,line_x_start=?,line_x_end=?
       WHERE id=?
-    \`).run(
+    `).run(
       next.enabled ? 1 : 0,
       next.lineY,
       next.direction,
@@ -503,13 +503,13 @@ const api = {
 
   getEvents(limit = 100) {
     const safeLimit = Math.max(1, Math.min(1000, Number(limit) || 100));
-    return sqlite.prepare(\`
+    return sqlite.prepare(`
       SELECT id,timestamp,person_id,person_name,score,crop_filename,
              is_known,camera_id,camera_name
       FROM events
       ORDER BY timestamp DESC
       LIMIT ?
-    \`).all(safeLimit).map(eventRow);
+    `).all(safeLimit).map(eventRow);
   },
 
   addEvent(personId, personName, score, cropFilename, isKnown, cameraId = null, cameraName = 'Manual Upload') {
@@ -525,22 +525,22 @@ const api = {
       camera_name: cameraName
     };
 
-    sqlite.prepare(\`
+    sqlite.prepare(`
       INSERT INTO events(
         id,timestamp,person_id,person_name,score,crop_filename,
         is_known,camera_id,camera_name
       ) VALUES(?,?,?,?,?,?,?,?,?)
-    \`).run(
+    `).run(
       event.id, event.timestamp, event.person_id, event.person_name,
       event.score, event.crop_filename, event.is_known ? 1 : 0,
       event.camera_id, event.camera_name
     );
 
-    const oldEvents = sqlite.prepare(\`
+    const oldEvents = sqlite.prepare(`
       SELECT id,crop_filename FROM events
       ORDER BY timestamp DESC
       LIMIT -1 OFFSET 1000
-    \`).all();
+    `).all();
 
     if (oldEvents.length) {
       const deleteStmt = sqlite.prepare('DELETE FROM events WHERE id=?');
@@ -560,12 +560,12 @@ const api = {
     if (!event) return null;
 
     const merged = { ...eventRow(event), ...updates };
-    sqlite.prepare(\`
+    sqlite.prepare(`
       UPDATE events
       SET timestamp=?,person_id=?,person_name=?,score=?,crop_filename=?,
           is_known=?,camera_id=?,camera_name=?
       WHERE id=?
-    \`).run(
+    `).run(
       merged.timestamp,
       merged.person_id,
       merged.person_name,
@@ -639,10 +639,10 @@ const api = {
     }
 
     if (bestCluster) {
-      sqlite.prepare(\`
+      sqlite.prepare(`
         INSERT INTO cluster_photos(id,cluster_id,filename,embedding,gender)
         VALUES(?,?,?,?,?)
-      \`).run(
+      `).run(
         newId('cphoto_'),
         bestCluster.id,
         cropFilename,
@@ -691,10 +691,10 @@ const api = {
       new Date().toISOString()
     );
 
-    sqlite.prepare(\`
+    sqlite.prepare(`
       INSERT INTO cluster_photos(id,cluster_id,filename,embedding,gender)
       VALUES(?,?,?,?,?)
-    \`).run(
+    `).run(
       newId('cphoto_'),
       clusterId,
       cropFilename,
@@ -739,10 +739,10 @@ const api = {
       person.gender = cluster.gender;
     }
 
-    const insertPhoto = sqlite.prepare(\`
+    const insertPhoto = sqlite.prepare(`
       INSERT INTO photos(id,person_id,filename,embedding,created_at)
       VALUES(?,?,?,?,?)
-    \`);
+    `);
 
     for (const photo of cluster.photos) {
       const uploadFilename = 'enrolled_' + Date.now() + '_' + path.basename(photo.filename || 'face.jpg');
@@ -766,11 +766,11 @@ const api = {
       );
     }
 
-    sqlite.prepare(\`
+    sqlite.prepare(`
       UPDATE events
       SET person_id=?,person_name=?,is_known=1
       WHERE person_id=?
-    \`).run(
+    `).run(
       person.id,
       isNew ? person.name : person.name + (
         person.gender && person.gender !== 'Unknown' ? ' (' + person.gender + ')' : ''
@@ -832,10 +832,10 @@ const api = {
       embedding: photo.embedding
     };
 
-    sqlite.prepare(\`
+    sqlite.prepare(`
       INSERT INTO photos(id,person_id,filename,embedding,created_at)
       VALUES(?,?,?,?,?)
-    \`).run(
+    `).run(
       newPhoto.id,
       newPhoto.person_id,
       newPhoto.filename,
@@ -923,10 +923,10 @@ const api = {
       console.error('Failed to copy crop file to uploads during event photo move:', err);
     }
 
-    sqlite.prepare(\`
+    sqlite.prepare(`
       INSERT INTO photos(id,person_id,filename,embedding,created_at)
       VALUES(?,?,?,?,?)
-    \`).run(
+    `).run(
       newId(),
       person.id,
       uploadFilename,
@@ -934,11 +934,11 @@ const api = {
       new Date().toISOString()
     );
 
-    sqlite.prepare(\`
+    sqlite.prepare(`
       UPDATE events
       SET person_id=?,person_name=?,is_known=1,score=1.0
       WHERE id=?
-    \`).run(person.id, person.name, eventId);
+    `).run(person.id, person.name, eventId);
 
     return eventRow(sqlite.prepare(
       'SELECT id,timestamp,person_id,person_name,score,crop_filename,is_known,camera_id,camera_name FROM events WHERE id=?'
@@ -962,12 +962,12 @@ const api = {
     let removedCount = 0;
 
     for (const person of persons) {
-      const photos = sqlite.prepare(\`
+      const photos = sqlite.prepare(`
         SELECT id,filename,embedding
         FROM photos
         WHERE person_id=?
         ORDER BY rowid
-      \`).all(person.id);
+      `).all(person.id);
 
       const manual = photos.filter(p => p.filename && !p.filename.startsWith('auto_'));
       const auto = photos.filter(p => p.filename && p.filename.startsWith('auto_'));
@@ -1029,7 +1029,7 @@ const api = {
   },
 
   resetAll() {
-    sqlite.exec(\`
+    sqlite.exec(`
       DELETE FROM cluster_photos;
       DELETE FROM clusters;
       DELETE FROM photos;
@@ -1037,7 +1037,7 @@ const api = {
       DELETE FROM events;
       DELETE FROM cameras;
       UPDATE app_settings SET threshold=0.50,dis_type=0,cluster_counter=0 WHERE id=1;
-    \`);
+    `);
 
     for (const dir of [UPLOADS_DIR, CROPS_DIR]) {
       if (!fs.existsSync(dir)) continue;
