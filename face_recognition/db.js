@@ -151,7 +151,9 @@ function readDB() {
   return data;
 }
 
-const writeDB = sqlite.transaction((input) => {
+function writeDB(input) {
+  sqlite.exec('BEGIN IMMEDIATE');
+  try {
   const data = { ...emptyDB(), ...(input || {}) };
 
   sqlite.exec(`
@@ -229,7 +231,13 @@ const writeDB = sqlite.transaction((input) => {
 
   sqlite.prepare('INSERT INTO meta(key,value) VALUES(?,?)')
     .run('cluster_counter', String(Number(data.cluster_counter) || 0));
-});
+    sqlite.exec('COMMIT');
+  } catch (err) {
+    try { sqlite.exec('ROLLBACK'); } catch (_) {}
+    throw err;
+  }
+}
+
 
 function migrateLegacyJSON() {
   const hasRows = sqlite.prepare('SELECT EXISTS(SELECT 1 FROM persons) AS x').get().x ||
@@ -302,6 +310,14 @@ function l2Distance(a, b) {
 
 module.exports = {
   DATA_DIR,
+  SQLITE_FILE,
+  getSettings() {
+    return readDB().settings || {};
+  },
+  setSetting(key, value) {
+    sqlite.prepare('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value')
+      .run(key, JSON.stringify(value));
+  },
   UPLOADS_DIR,
   CROPS_DIR,
 
