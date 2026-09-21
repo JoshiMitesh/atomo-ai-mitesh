@@ -44,30 +44,22 @@ let settings = {
   dis_type: 0 // 0 cosine, 1 norml2
 };
 
-// Load settings on startup if they exist in DB
+// Settings are stored directly in SQLite.
 function loadSettings() {
   try {
-    const dbPath = path.join(db.DATA_DIR, 'database.json');
-    if (fs.existsSync(dbPath)) {
-      const data = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
-      if (data.settings) {
-        settings = { ...settings, ...data.settings };
-      }
-    }
+    settings = { ...settings, ...db.getSettings() };
   } catch (e) {
-    console.error('Failed to load settings from DB:', e);
+    console.error('Failed to load settings from SQLite:', e);
   }
 }
 loadSettings();
 
 function saveSettings() {
   try {
-    const dbPath = path.join(db.DATA_DIR, 'database.json');
-    const data = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
-    data.settings = settings;
-    fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
+    db.setSetting('threshold', settings.threshold);
+    db.setSetting('dis_type', settings.dis_type);
   } catch (e) {
-    console.error('Failed to save settings to DB:', e);
+    console.error('Failed to save settings to SQLite:', e);
   }
 }
 
@@ -1060,12 +1052,11 @@ app.post('/api/cameras/upload-mock', upload.single('video'), async (req, res) =>
     // 3. Update the camera's RTSP URL
     camera.rtsp_url = rtspUrl;
     
-    // Save to database by recreating structure
-    const dbData = JSON.parse(fs.readFileSync(path.join(db.DATA_DIR, 'database.json'), 'utf8'));
-    const dbCam = dbData.cameras.find(c => c.id === camera.id);
-    if (dbCam) {
-      dbCam.rtsp_url = rtspUrl;
-      fs.writeFileSync(path.join(db.DATA_DIR, 'database.json'), JSON.stringify(dbData, null, 2));
+    // Persist the generated RTSP URL through the database API.
+    const savedCamera = db.getCamera(camera.id);
+    if (savedCamera) {
+      savedCamera.rtsp_url = rtspUrl;
+      db.updateCamera(camera.id, savedCamera);
     }
     
     // 4. Immediately trigger recognition start on Python worker
