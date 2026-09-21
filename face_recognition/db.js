@@ -1,69 +1,270 @@
 const fs = require('fs');
 const path = require('path');
+const { DatabaseSync } = require('node:sqlite');
 
 const DATA_DIR = path.join(__dirname, 'data');
-const DB_FILE = path.join(DATA_DIR, 'database.json');
+const SQLITE_FILE = path.join(DATA_DIR, 'face_recognition.db');
 const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
 const CROPS_DIR = path.join(DATA_DIR, 'crops');
+const LEGACY_JSON_FILE = path.join(DATA_DIR, 'database.json');
 
-// Ensure directories exist
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 if (!fs.existsSync(CROPS_DIR)) fs.mkdirSync(CROPS_DIR, { recursive: true });
 
-// Initialize database file
-function initDB() {
-  let dbData = {
-    persons: [],
-    photos: [],
-    events: [],
-    cameras: [],
-    clusters: [],
-    cluster_counter: 0
-  };
+const sqlite = new DatabaseSync(SQLITE_FILE, {
+  enableForeignKeyConstraints: true,
+  timeout: 5000
+});
+sqlite.exec(`
+PRAGMA journal_mode = WAL;
+PRAGMA synchronous = NORMAL;
+PRAGMA foreign_keys = ON;
+PRAGMA busy_timeout = 5000;
 
-  if (fs.existsSync(DB_FILE)) {
-    try {
-      const existing = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-      // Database migration: Ensure all collections exist
-      dbData.persons = existing.persons || [];
-      dbData.photos = existing.photos || [];
-      dbData.events = existing.events || [];
-      dbData.cameras = existing.cameras || [];
-      dbData.clusters = existing.clusters || [];
-      dbData.cluster_counter = typeof existing.cluster_counter === 'number' 
-        ? existing.cluster_counter 
-        : (existing.clusters ? existing.clusters.length : 0);
-      
-      // Save migrated data
-      fs.writeFileSync(DB_FILE, JSON.stringify(dbData, null, 2));
-    } catch (err) {
-      console.error('Database migration failed, starting clean:', err);
-      fs.writeFileSync(DB_FILE, JSON.stringify(dbData, null, 2));
-    }
-  } else {
-    fs.writeFileSync(DB_FILE, JSON.stringify(dbData, null, 2));
-  }
+CREATE TABLE IF NOT EXISTS persons (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  gender TEXT NOT NULL DEFAULT 'Unknown',
+  created_at TEXT
+);
+CREATE TABLE IF NOT EXISTS photos (
+  id TEXT PRIMARY KEY,
+  person_id TEXT NOT NULL,
+  filename TEXT,
+  embedding TEXT,
+  FOREIGN KEY (person_id) REFERENCES persons(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS events (
+  id TEXT PRIMARY KEY,
+  timestamp TEXT,
+  person_id TEXT,
+  person_name TEXT,
+  score REAL,
+  crop_filename TEXT,
+  is_known INTEGER NOT NULL DEFAULT 0,
+  camera_id TEXT,
+  camera_name TEXT
+);
+CREATE TABLE IF NOT EXISTS cameras (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  rtsp_url TEXT,
+  is_active INTEGER NOT NULL DEFAULT 0,
+  line_crossing_enabled INTEGER NOT NULL DEFAULT 0,
+  line_y REAL NOT NULL DEFAULT 0.6,
+  line_direction TEXT NOT NULL DEFAULT 'in',
+  line_x_start REAL NOT NULL DEFAULT 0,
+  line_x_end REAL NOT NULL DEFAULT 1,
+  created_at TEXT
+);
+CREATE TABLE IF NOT EXISTS clusters (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  gender TEXT NOT NULL DEFAULT 'Unknown',
+  created_at TEXT
+);
+CREATE TABLE IF NOT EXISTS cluster_photos (
+  row_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cluster_id TEXT NOT NULL,
+  photo_id TEXT,
+  filename TEXT,
+  embedding TEXT,
+  gender TEXT NOT NULL DEFAULT 'Unknown',
+  FOREIGN KEY (cluster_id) REFERENCES clusters(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_photos_person ON photos(person_id);
+CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_events_person ON events(person_id);
+CREATE INDEX IF NOT EXISTS idx_events_camera ON events(camera_id);
+CREATE INDEX IF NOT EXISTS idx_cluster_photos_cluster ON cluster_photos(cluster_id);
+`);
+
+function parseEmbedding(value) {
+  if (value === null || value === undefined || value === '') return null;
+  try { return JSON.parse(value); } catch (_) { return null; }
 }
-initDB();
+
+function emptyDB() {
+  return { persons: [], photos: [], events: [], cameras: [], clusters: [], cluster_counter: 0, settings: {} };
+}
 
 function readDB() {
+  const data = emptyDB();
+
+  data.persons = sqlite.prepare(
+    'SELECT id,name,gender,created_at FROM persons ORDER BY rowid'
+  ).all();
+
+  data.photos = sqlite.prepare(
+    'SELECT id,person_id,filename,embedding FROM photos ORDER BY rowid'
+  ).all().map(p => ({ ...p, embedding: parseEmbedding(p.embedding) }));
+
+  data.events = sqlite.prepare(
+    'SELECT id,timestamp,person_id,person_name,score,crop_filename,is_known,camera_id,camera_name FROM events ORDER BY rowid'
+  ).all().map(e => ({ ...e, is_known: !!e.is_known }));
+
+  data.cameras = sqlite.prepare(
+    'SELECT id,name,rtsp_url,is_active,line_crossing_enabled,line_y,line_direction,line_x_start,line_x_end,created_at FROM cameras ORDER BY rowid'
+  ).all().map(c => ({
+    ...c,
+    is_active: !!c.is_active,
+    line_crossing_enabled: !!c.line_crossing_enabled
+  }));
+
+  const clusterRows = sqlite.prepare(
+    'SELECT id,name,gender,created_at FROM clusters ORDER BY rowid'
+  ).all();
+  const clusterPhotos = sqlite.prepare(
+    'SELECT row_id,cluster_id,photo_id,filename,embedding,gender FROM cluster_photos ORDER BY row_id'
+  ).all();
+
+  data.clusters = clusterRows.map(c => ({
+    ...c,
+    photos: clusterPhotos
+      .filter(p => p.cluster_id === c.id)
+      .map(p => ({
+        ...(p.photo_id ? { id: p.photo_id } : {}),
+        filename: p.filename,
+        embedding: parseEmbedding(p.embedding),
+        gender: p.gender || 'Unknown'
+      }))
+  }));
+
+  const counter = sqlite.prepare("SELECT value FROM meta WHERE key='cluster_counter'").get();
+  data.cluster_counter = counter ? Number(counter.value) || 0 : data.clusters.length;
+
+  for (const row of sqlite.prepare('SELECT key,value FROM settings').all()) {
+    try { data.settings[row.key] = JSON.parse(row.value); }
+    catch (_) { data.settings[row.key] = row.value; }
+  }
+
+  return data;
+}
+
+const writeDB = sqlite.transaction((input) => {
+  const data = { ...emptyDB(), ...(input || {}) };
+
+  sqlite.exec(`
+    DELETE FROM cluster_photos;
+    DELETE FROM clusters;
+    DELETE FROM photos;
+    DELETE FROM persons;
+    DELETE FROM events;
+    DELETE FROM cameras;
+    DELETE FROM settings;
+    DELETE FROM meta;
+  `);
+
+  const personStmt = sqlite.prepare(
+    'INSERT INTO persons(id,name,gender,created_at) VALUES(?,?,?,?)'
+  );
+  for (const p of (data.persons || [])) {
+    personStmt.run(p.id, p.name || '', p.gender || 'Unknown', p.created_at || null);
+  }
+
+  const photoStmt = sqlite.prepare(
+    'INSERT INTO photos(id,person_id,filename,embedding) VALUES(?,?,?,?)'
+  );
+  for (const p of (data.photos || [])) {
+    photoStmt.run(
+      p.id, p.person_id || null, p.filename || null,
+      p.embedding == null ? null : JSON.stringify(p.embedding)
+    );
+  }
+
+  const eventStmt = sqlite.prepare(
+    'INSERT INTO events(id,timestamp,person_id,person_name,score,crop_filename,is_known,camera_id,camera_name) VALUES(?,?,?,?,?,?,?,?,?)'
+  );
+  for (const e of (data.events || [])) {
+    eventStmt.run(
+      e.id, e.timestamp || null, e.person_id || null, e.person_name || null,
+      Number(e.score || 0), e.crop_filename || null, e.is_known ? 1 : 0,
+      e.camera_id || null, e.camera_name || null
+    );
+  }
+
+  const cameraStmt = sqlite.prepare(
+    'INSERT INTO cameras(id,name,rtsp_url,is_active,line_crossing_enabled,line_y,line_direction,line_x_start,line_x_end,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)'
+  );
+  for (const c of (data.cameras || [])) {
+    cameraStmt.run(
+      c.id, c.name || '', c.rtsp_url || '', c.is_active ? 1 : 0,
+      c.line_crossing_enabled ? 1 : 0, Number(c.line_y ?? 0.6),
+      c.line_direction || 'in', Number(c.line_x_start ?? 0),
+      Number(c.line_x_end ?? 1), c.created_at || null
+    );
+  }
+
+  const clusterStmt = sqlite.prepare(
+    'INSERT INTO clusters(id,name,gender,created_at) VALUES(?,?,?,?)'
+  );
+  const clusterPhotoStmt = sqlite.prepare(
+    'INSERT INTO cluster_photos(cluster_id,photo_id,filename,embedding,gender) VALUES(?,?,?,?,?)'
+  );
+  for (const c of (data.clusters || [])) {
+    clusterStmt.run(c.id, c.name || '', c.gender || 'Unknown', c.created_at || null);
+    for (const p of (c.photos || [])) {
+      clusterPhotoStmt.run(
+        c.id, p.id || null, p.filename || null,
+        p.embedding == null ? null : JSON.stringify(p.embedding),
+        p.gender || 'Unknown'
+      );
+    }
+  }
+
+  const settingStmt = sqlite.prepare('INSERT INTO settings(key,value) VALUES(?,?)');
+  for (const [key, value] of Object.entries(data.settings || {})) {
+    settingStmt.run(key, JSON.stringify(value));
+  }
+
+  sqlite.prepare('INSERT INTO meta(key,value) VALUES(?,?)')
+    .run('cluster_counter', String(Number(data.cluster_counter) || 0));
+});
+
+function migrateLegacyJSON() {
+  const hasRows = sqlite.prepare('SELECT EXISTS(SELECT 1 FROM persons) AS x').get().x ||
+                  sqlite.prepare('SELECT EXISTS(SELECT 1 FROM photos) AS x').get().x ||
+                  sqlite.prepare('SELECT EXISTS(SELECT 1 FROM events) AS x').get().x ||
+                  sqlite.prepare('SELECT EXISTS(SELECT 1 FROM cameras) AS x').get().x ||
+                  sqlite.prepare('SELECT EXISTS(SELECT 1 FROM clusters) AS x').get().x;
+  if (hasRows || !fs.existsSync(LEGACY_JSON_FILE)) return;
+
   try {
-    const data = fs.readFileSync(DB_FILE, 'utf8');
-    return JSON.parse(data);
+    const legacy = JSON.parse(fs.readFileSync(LEGACY_JSON_FILE, 'utf8'));
+    writeDB({ ...emptyDB(), ...legacy });
+    const backup = LEGACY_JSON_FILE + '.migrated';
+    fs.renameSync(LEGACY_JSON_FILE, backup);
+    console.log('[SQLite] Migrated legacy database.json to face_recognition.db.');
+    console.log('[SQLite] Legacy JSON renamed to database.json.migrated.');
   } catch (err) {
-    console.error('Error reading database file:', err);
-    return { persons: [], photos: [], events: [], cameras: [] };
+    console.error('[SQLite] Legacy JSON migration failed:', err.message);
+    throw err;
   }
 }
 
-function writeDB(data) {
-  try {
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
-  } catch (err) {
-    console.error('Error writing database file:', err);
+migrateLegacyJSON();
+
+const api = {
+  getSettings() {
+    return readDB().settings || {};
+  },
+  setSetting(key, value) {
+    const stmt = sqlite.prepare(
+      'INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value'
+    );
+    stmt.run(key, JSON.stringify(value));
   }
-}
+};
 
 // Math helpers for vector comparisons with L2 normalization
 function dotProduct(a, b) {
