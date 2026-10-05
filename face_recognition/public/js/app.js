@@ -272,7 +272,17 @@ function handleSocketMessage(msg) {
       fetchPersonPhotos();
     }
   } else if (msg.event === 'clusters_updated') {
-    fetchClusters();
+    // The backend includes the freshly clustered state so the UI updates
+    // immediately without requiring a manual browser refresh.
+    if (Array.isArray(msg.data)) {
+      allClusters = msg.data;
+      if (currentTab === 'clusters') {
+        renderClusters(msg.data);
+      }
+    } else {
+      // Backward-compatible fallback for older backend messages.
+      fetchClusters();
+    }
     fetchEvents();
   } else if (msg.event === 'video_face_enrolled') {
     if (enrollProgressList) {
