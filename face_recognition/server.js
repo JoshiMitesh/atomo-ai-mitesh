@@ -566,7 +566,7 @@ function handlePythonMessage(msg) {
             const clusterResult = db.addFaceToCluster(msg.embedding, msg.crop_filename, null, settings);
             personId = clusterResult.id;
             personName = clusterResult.name;
-            broadcast({ event: 'clusters_updated' });
+            broadcastClustersUpdate();
           } catch (err) {
             console.error('[Clustering] Error clustering face:', err);
           }
@@ -629,6 +629,15 @@ function broadcast(data) {
 
 function broadcastDatabaseUpdate() {
   broadcast({ event: 'database_updated' });
+}
+
+function broadcastClustersUpdate() {
+  // Send the current cluster state with the event so connected UIs can render
+  // newly grouped photos immediately without a manual browser refresh.
+  broadcast({
+    event: 'clusters_updated',
+    data: db.getClusters()
+  });
 }
 
 wss.on('connection', (ws) => {
@@ -811,7 +820,7 @@ app.post('/api/clusters/:id/enroll', async (req, res) => {
     const person = db.enrollCluster(clusterId, name);
     sendCandidatesToPython();
     broadcastDatabaseUpdate();
-    broadcast({ event: 'clusters_updated' });
+    broadcastClustersUpdate();
     res.json({ success: true, person });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -832,7 +841,7 @@ app.post('/api/clusters/:clusterId/photos/:photoId/move', async (req, res) => {
     // Sync templates with running Python thread
     sendCandidatesToPython();
     broadcastDatabaseUpdate();
-    broadcast({ event: 'clusters_updated' });
+    broadcastClustersUpdate();
     
     res.json({ success: true, photo });
   } catch (err) {
@@ -843,7 +852,7 @@ app.post('/api/clusters/:clusterId/photos/:photoId/move', async (req, res) => {
 app.delete('/api/clusters/:id', (req, res) => {
   const success = db.deleteCluster(req.params.id);
   if (success) {
-    broadcast({ event: 'clusters_updated' });
+    broadcastClustersUpdate();
     res.json({ success: true });
   } else {
     res.status(404).json({ error: 'Cluster not found.' });
@@ -885,7 +894,7 @@ app.post('/api/recognize', upload.single('photo'), async (req, res) => {
             const clusterResult = db.addFaceToCluster(face.embedding, face.crop_filename, face.gender, settings);
             personId = clusterResult.id;
             personName = clusterResult.name;
-            broadcast({ event: 'clusters_updated' });
+            broadcastClustersUpdate();
             face.cluster_id = clusterResult.id;
             face.cluster_name = clusterResult.name;
           } catch (err) {
@@ -1145,7 +1154,7 @@ app.post('/api/events/:eventId/move', async (req, res) => {
     // Sync templates with running Python thread
     sendCandidatesToPython();
     broadcastDatabaseUpdate();
-    broadcast({ event: 'clusters_updated' });
+    broadcastClustersUpdate();
     
     res.json({ success: true, event: result });
   } catch (err) {
@@ -1172,7 +1181,7 @@ app.delete('/api/reset-all', async (req, res) => {
     db.resetAll();
     sendCandidatesToPython();
     broadcastDatabaseUpdate();
-    broadcast({ event: 'clusters_updated' });
+    broadcastClustersUpdate();
     broadcast({ event: 'events_cleared' });
     broadcast({ event: 'cameras_updated', data: [] });
     
